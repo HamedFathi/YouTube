@@ -1,7 +1,7 @@
 📺 **Welcome to Hamed Fathi's YouTube Repository!**
 
 🚀 **About Me:**
-I’m Hamed Fathi, a passionate software engineer and creator. On my [YouTube channel](https://www.youtube.com/@HamedFathiTech), we dive deep into the world of programming, covering:
+A passionate software engineer and creator. On my [YouTube channel](https://www.youtube.com/@HamedFathiTech), we dive deep into the world of programming, covering:
 
 * 🌐 Frontend Development
 * 🛠️ Backend Engineering
