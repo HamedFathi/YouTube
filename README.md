@@ -1,7 +1,3 @@
-Sure thing! Here's a polished version with a more engaging tone, perfect for a GitHub README or similar context:
-
----
-
 📺 **Welcome to Hamed Fathi's YouTube Repository!**
 
 🚀 **About Me:**
