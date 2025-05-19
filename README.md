@@ -20,5 +20,7 @@ A passionate software engineer and creator. On my [YouTube channel](https://www.
 
 ---
 
+#### Videos
+
 - [RAG C# Application with Microsoft.Extensions.AI, Ollama and Qdrant](https://www.youtube.com/watch?v=ujgf9g4ajus)
 - [RAG C# Application with Semantic Kernel, Ollama and Qdrant](https://www.youtube.com/watch?v=zISe2jXmrB8&t)
