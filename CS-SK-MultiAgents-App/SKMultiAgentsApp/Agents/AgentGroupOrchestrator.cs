@@ -53,7 +53,6 @@ public class AgentGroupOrchestrator(Kernel kernel)
 
         return new KernelFunctionSelectionStrategy(selectionFunction, kernel)
         {
-            AgentsVariableName = "agents",
             HistoryVariableName = "history"
         };
     }
