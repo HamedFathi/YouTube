@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35514.174 d17.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OllamaOCRServer", "OllamaOCRServer\OllamaOCRServer.csproj", "{CE06F5AA-B5FB-4127-A6A3-A930FEF5414B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OllamaOCRServer.AppHost", "OllamaOCRServer.AppHost\OllamaOCRServer.AppHost.csproj", "{BD092C42-9988-4159-B51A-A91A9DB0E6F8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OllamaOCRServer.ServiceDefaults", "OllamaOCRServer.ServiceDefaults\OllamaOCRServer.ServiceDefaults.csproj", "{153B1BA6-1FEB-45C8-8D9A-49AFF555490C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CE06F5AA-B5FB-4127-A6A3-A930FEF5414B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE06F5AA-B5FB-4127-A6A3-A930FEF5414B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE06F5AA-B5FB-4127-A6A3-A930FEF5414B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE06F5AA-B5FB-4127-A6A3-A930FEF5414B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD092C42-9988-4159-B51A-A91A9DB0E6F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD092C42-9988-4159-B51A-A91A9DB0E6F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD092C42-9988-4159-B51A-A91A9DB0E6F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD092C42-9988-4159-B51A-A91A9DB0E6F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{153B1BA6-1FEB-45C8-8D9A-49AFF555490C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{153B1BA6-1FEB-45C8-8D9A-49AFF555490C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{153B1BA6-1FEB-45C8-8D9A-49AFF555490C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{153B1BA6-1FEB-45C8-8D9A-49AFF555490C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
