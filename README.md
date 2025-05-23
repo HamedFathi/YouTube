@@ -24,3 +24,5 @@ A passionate software engineer and creator. On my [YouTube channel](https://www.
 
 - [RAG C# Application with Microsoft.Extensions.AI, Ollama and Qdrant](https://www.youtube.com/watch?v=ujgf9g4ajus)
 - [RAG C# Application with Semantic Kernel, Ollama and Qdrant](https://www.youtube.com/watch?v=zISe2jXmrB8&t)
+- [Multi-agent apps with C# and Semantic Kernel (Job Assistant App)](https://www.youtube.com/watch?v=MCVMUu1N2Pc)
+- [Ollama OCR Server with C# and .NET Aspire](https://www.youtube.com/watch?v=wPLqkuxNzqM)
