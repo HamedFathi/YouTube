@@ -1,0 +1,961 @@
+DROP TABLE IF EXISTS AuditLogs;
+DROP TABLE IF EXISTS Payments;
+DROP TABLE IF EXISTS Fines;
+DROP TABLE IF EXISTS Reservations;
+DROP TABLE IF EXISTS Loans;
+DROP TABLE IF EXISTS BookCopies;
+DROP TABLE IF EXISTS BookCategories;
+DROP TABLE IF EXISTS BookAuthors;
+DROP TABLE IF EXISTS Books;
+DROP TABLE IF EXISTS Categories;
+DROP TABLE IF EXISTS Authors;
+DROP TABLE IF EXISTS Publishers;
+DROP TABLE IF EXISTS Branches;
+DROP TABLE IF EXISTS Users;
+DROP TABLE IF EXISTS Roles;
+
+DROP VIEW IF EXISTS AvailableCopies;
+DROP VIEW IF EXISTS UserLoans;
+DROP VIEW IF EXISTS OverdueLoans;
+DROP VIEW IF EXISTS AllReservations;
+DROP VIEW IF EXISTS ActiveFines;
+
+DROP TRIGGER IF EXISTS trg_after_loan_insert;
+DROP TRIGGER IF EXISTS trg_after_loan_update_return;
+DROP TRIGGER IF EXISTS trg_before_loan_insert_check_availability;
+DROP TRIGGER IF EXISTS trg_after_reservation_insert;
+DROP TRIGGER IF EXISTS trg_after_reservation_update_status;
+DROP TRIGGER IF EXISTS trg_after_loan_insert_audit;
+
+DROP INDEX IF EXISTS idx_loans_copy;
+DROP INDEX IF EXISTS idx_loans_user;
+DROP INDEX IF EXISTS idx_reservations_copy;
+DROP INDEX IF EXISTS idx_reservations_user;
+DROP INDEX IF EXISTS idx_fines_user;
+DROP INDEX IF EXISTS idx_payments_user;
+
+CREATE TABLE Roles (
+    RoleID INTEGER PRIMARY KEY AUTOINCREMENT,
+    RoleName TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE Users (
+    UserID INTEGER PRIMARY KEY AUTOINCREMENT,
+    RoleID INTEGER NOT NULL,
+    FirstName TEXT NOT NULL,
+    LastName TEXT NOT NULL,
+    DateOfBirth DATE,
+    Address TEXT,
+    Phone TEXT,
+    Email TEXT UNIQUE,
+    PasswordHash TEXT NOT NULL,
+    JoinDate DATE DEFAULT (date('now')),
+    IsActive INTEGER DEFAULT 1,
+    FOREIGN KEY (RoleID) REFERENCES Roles(RoleID)
+);
+
+CREATE TABLE Branches (
+    BranchID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name TEXT NOT NULL UNIQUE,
+    Address TEXT NOT NULL,
+    Phone TEXT
+);
+
+CREATE TABLE Publishers (
+    PublisherID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name TEXT NOT NULL UNIQUE,
+    Address TEXT,
+    Phone TEXT,
+    Email TEXT
+);
+
+CREATE TABLE Categories (
+    CategoryID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name TEXT NOT NULL UNIQUE,
+    Description TEXT
+);
+
+CREATE TABLE Authors (
+    AuthorID INTEGER PRIMARY KEY AUTOINCREMENT,
+    FirstName TEXT NOT NULL,
+    LastName TEXT NOT NULL,
+    BirthDate DATE,
+    Country TEXT
+);
+
+CREATE TABLE Books (
+    BookID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Title TEXT NOT NULL,
+    PublisherID INTEGER,
+    ISBN TEXT UNIQUE,
+    PublishedYear INTEGER,
+    Description TEXT,
+    FOREIGN KEY (PublisherID) REFERENCES Publishers(PublisherID)
+);
+
+CREATE TABLE BookAuthors (
+    BookID INTEGER NOT NULL,
+    AuthorID INTEGER NOT NULL,
+    PRIMARY KEY (BookID, AuthorID),
+    FOREIGN KEY (BookID) REFERENCES Books(BookID),
+    FOREIGN KEY (AuthorID) REFERENCES Authors(AuthorID)
+);
+
+CREATE TABLE BookCategories (
+    BookID INTEGER NOT NULL,
+    CategoryID INTEGER NOT NULL,
+    PRIMARY KEY (BookID, CategoryID),
+    FOREIGN KEY (BookID) REFERENCES Books(BookID),
+    FOREIGN KEY (CategoryID) REFERENCES Categories(CategoryID)
+);
+
+CREATE TABLE BookCopies (
+    CopyID INTEGER PRIMARY KEY AUTOINCREMENT,
+    BookID INTEGER NOT NULL,
+    BranchID INTEGER NOT NULL,
+    Barcode TEXT UNIQUE NOT NULL,
+    Status TEXT NOT NULL CHECK(Status IN ('Available', 'On Loan', 'Reserved', 'Lost', 'Maintenance')),
+    PurchaseDate DATE,
+    FOREIGN KEY (BookID) REFERENCES Books(BookID),
+    FOREIGN KEY (BranchID) REFERENCES Branches(BranchID)
+);
+
+CREATE TABLE Loans (
+    LoanID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CopyID INTEGER NOT NULL,
+    UserID INTEGER NOT NULL,
+    LoanDate DATE DEFAULT (date('now')),
+    DueDate DATE NOT NULL,
+    ReturnDate DATE,
+    FineApplied REAL DEFAULT 0,
+    FOREIGN KEY (CopyID) REFERENCES BookCopies(CopyID),
+    FOREIGN KEY (UserID) REFERENCES Users(UserID),
+    CHECK (ReturnDate IS NULL OR ReturnDate >= LoanDate)
+);
+
+CREATE TABLE Reservations (
+    ReservationID INTEGER PRIMARY KEY AUTOINCREMENT,
+    CopyID INTEGER NOT NULL,
+    UserID INTEGER NOT NULL,
+    ReservationDate DATE DEFAULT (date('now')),
+    ExpiryDate DATE,
+    Status TEXT NOT NULL CHECK(Status IN ('Active', 'Cancelled', 'Completed')),
+    FOREIGN KEY (CopyID) REFERENCES BookCopies(CopyID),
+    FOREIGN KEY (UserID) REFERENCES Users(UserID)
+);
+
+CREATE TABLE Fines (
+    FineID INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserID INTEGER NOT NULL,
+    LoanID INTEGER,
+    Amount REAL NOT NULL,
+    Paid INTEGER DEFAULT 0,
+    DateIssued DATE DEFAULT (date('now')),
+    DatePaid DATE,
+    FOREIGN KEY (UserID) REFERENCES Users(UserID),
+    FOREIGN KEY (LoanID) REFERENCES Loans(LoanID)
+);
+
+CREATE TABLE Payments (
+    PaymentID INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserID INTEGER NOT NULL,
+    FineID INTEGER,
+    Amount REAL NOT NULL,
+    PaymentDate DATE DEFAULT (date('now')),
+    PaymentMethod TEXT,
+    FOREIGN KEY (UserID) REFERENCES Users(UserID),
+    FOREIGN KEY (FineID) REFERENCES Fines(FineID)
+);
+
+CREATE TABLE AuditLogs (
+    LogID INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserID INTEGER NOT NULL,
+    Action TEXT NOT NULL,
+    Timestamp DATETIME DEFAULT (datetime('now')),
+    Details TEXT,
+    FOREIGN KEY (UserID) REFERENCES Users(UserID)
+);
+
+CREATE INDEX idx_loans_copy ON Loans(CopyID);
+CREATE INDEX idx_loans_user ON Loans(UserID);
+CREATE INDEX idx_reservations_copy ON Reservations(CopyID);
+CREATE INDEX idx_reservations_user ON Reservations(UserID);
+CREATE INDEX idx_fines_user ON Fines(UserID);
+CREATE INDEX idx_payments_user ON Payments(UserID);
+
+INSERT INTO Roles (RoleName) VALUES ('Member'), ('Librarian'), ('Admin');
+
+INSERT INTO Branches (Name, Address, Phone) VALUES
+('Central Library', '123 Main St, Anytown', '555-0001'),
+('East Branch', '456 East Ave, Anytown', '555-0002'),
+('West Branch', '789 West Blvd, Anytown', '555-0003'),
+('North Branch', '101 North Rd, Anytown', '555-0004'),
+('South Branch', '202 South St, Anytown', '555-0005');
+
+INSERT INTO Publishers (Name, Address, Phone, Email) VALUES
+('Penguin Random House', '1745 Broadway, New York, NY', '212-555-1234', 'contact@penguinrandomhouse.com'),
+('HarperCollins', '195 Broadway, New York, NY', '212-555-5678', 'info@harpercollins.com'),
+('Simon & Schuster', '1230 Avenue of the Americas, New York, NY', '212-555-9876', 'info@simonandschuster.com'),
+('Hachette Book Group', '1290 Avenue of the Americas, New York, NY', '212-555-4321', 'contact@hbgusa.com'),
+('Macmillan Publishers', '120 Broadway, New York, NY', '646-555-7890', 'info@macmillan.com'),
+('Bloomsbury Publishing', '1385 Broadway, New York, NY', '212-555-1122', 'info@bloomsbury.com'),
+('Oxford University Press', '198 Madison Ave, New York, NY', '212-555-3344', 'contact@oup.com'),
+('Scholastic Inc.', '557 Broadway, New York, NY', '212-555-2233', 'info@scholastic.com'),
+('Random House', '1745 Broadway, New York, NY', '212-555-4455', 'contact@randomhouse.com'),
+('Vintage Books', '1745 Broadway, New York, NY', '212-555-6677', 'info@vintage.com'),
+('Bantam Books', '1745 Broadway, New York, NY', '212-555-8899', 'contact@bantam.com'),
+('Little, Brown and Company', '1290 Avenue of the Americas, New York, NY', '212-555-0011', 'info@littlebrown.com'),
+('Doubleday', '1745 Broadway, New York, NY', '212-555-2244', 'contact@doubleday.com'),
+('Faber & Faber', '74-77 Great Russell Street, London', '+44-20-7465-0045', 'info@faber.co.uk');
+
+INSERT INTO Categories (Name, Description) VALUES
+('Science Fiction', 'Books set in futuristic or alternative realities, often involving advanced technology and space exploration.'),
+('Fantasy', 'Books involving magical or supernatural elements, often set in fictional worlds.'),
+('History', 'Non-fiction books about historical events, periods, and figures.'),
+('Technology', 'Books about various aspects of technology, including programming, AI, and cybersecurity.'),
+('Biography', 'Books about the lives of real individuals.'),
+('Mystery', 'Fiction involving a crime or puzzle that needs to be solved.'),
+('Thriller', 'Fiction designed to elicit strong feelings of excitement, anticipation, fear, and apprehension.'),
+('Romance', 'Fiction focused on the development of a romantic relationship between characters.'),
+('Cookbook', 'Books containing recipes and cooking instructions.'),
+('Self-Help', 'Books offering advice on personal problems.'),
+('Young Adult', 'Books for readers typically aged 12 to 18.'),
+('Horror', 'Fiction designed to frighten, unsettle, create suspense, or create a feeling of dread.'),
+('Adventure', 'Fiction involving exciting journeys and explorations.'),
+('Philosophy', 'Books dealing with fundamental questions about existence, knowledge, values, reason, mind, and language.'),
+('Health & Fitness', 'Books about maintaining physical and mental health.'),
+('Business', 'Books about business practices, entrepreneurship, and economics.'),
+('Travel', 'Books about traveling to different places and cultures.'),
+('Art & Design', 'Books about visual arts, design principles, and artistic techniques.'),
+('Religion & Spirituality', 'Books about religious beliefs, practices, and spiritual growth.'),
+('Politics', 'Books about political systems, governance, and political theory.'),
+('Education', 'Books about teaching methods, learning theories, and educational systems.');
+
+INSERT INTO Authors (FirstName, LastName, BirthDate, Country) VALUES
+('Isaac', 'Asimov', '1920-01-02', 'USA'),
+('J.K.', 'Rowling', '1965-07-31', 'United Kingdom'),
+('George', 'Orwell', '1903-06-25', 'United Kingdom'),
+('Agatha', 'Christie', '1890-09-15', 'United Kingdom'),
+('Stephen', 'King', '1947-09-21', 'USA'),
+('Jane', 'Austen', '1775-12-16', 'United Kingdom'),
+('Yuval Noah', 'Harari', '1976-02-24', 'Israel'),
+('Bill', 'Gates', '1955-10-28', 'USA'),
+('Siddhartha', 'Mukherjee', '1970-07-21', 'India'),
+('Nora', 'Roberts', '1950-10-10', 'USA'),
+('Michelle', 'Obama', '1964-01-17', 'USA'),
+('Mark', 'Manson', '1984-09-16', 'USA'),
+('Suzanne', 'Collins', '1962-08-10', 'USA'),
+('Neil', 'Gaiman', '1960-11-10', 'United Kingdom'),
+('Mary', 'Shelley', '1797-08-30', 'United Kingdom'),
+('Toni', 'Morrison', '1931-02-18', 'USA'),
+('Gabriel', 'García Márquez', '1927-03-06', 'Colombia'),
+('Haruki', 'Murakami', '1949-01-12', 'Japan'),
+('Margaret', 'Atwood', '1939-11-18', 'Canada'),
+('Paulo', 'Coelho', '1947-08-24', 'Brazil'),
+('Chinua', 'Achebe', '1930-11-16', 'Nigeria'),
+('Virginia', 'Woolf', '1882-01-25', 'United Kingdom'),
+('Ernest', 'Hemingway', '1899-07-21', 'USA'),
+('Maya', 'Angelou', '1928-04-04', 'USA'),
+('Octavia', 'Butler', '1947-06-22', 'USA'),
+('Umberto', 'Eco', '1932-01-05', 'Italy'),
+('Salman', 'Rushdie', '1947-06-19', 'India'),
+('Zadie', 'Smith', '1975-10-25', 'United Kingdom'),
+('Chimamanda', 'Ngozi Adichie', '1977-09-15', 'Nigeria'),
+('Kazuo', 'Ishiguro', '1954-11-08', 'Japan'),
+('Don', 'Winslow', '1953-10-31', 'USA'),
+('Gillian', 'Flynn', '1971-02-24', 'USA'),
+('Dan', 'Brown', '1964-06-22', 'USA'),
+('John', 'Grisham', '1955-02-08', 'USA'),
+('Malcolm', 'Gladwell', '1963-09-03', 'Canada');
+
+INSERT INTO Books (Title, PublisherID, ISBN, PublishedYear, Description) VALUES
+('Foundation', 1, '9780553293357', 1951, 'Epic science fiction novel about the collapse and rebirth of a galactic empire.'),
+('Harry Potter and the Sorcerer''s Stone', 2, '9780590353427', 1997, 'Fantasy novel about a young wizard discovering his magical heritage.'),
+('1984', 1, '9780451524935', 1949, 'Dystopian social science fiction novel depicting a totalitarian society.'),
+('And Then There Were None', 3, '9780062073488', 1939, 'A classic mystery novel where ten strangers are lured to an isolated island.'),
+('It', 4, '9781501175465', 1986, 'A horror novel about a terrifying entity that preys on children.'),
+('Pride and Prejudice', 5, '9780141439518', 1813, 'A classic romance novel focusing on the emotional development of Elizabeth Bennet.'),
+('Sapiens: A Brief History of Humankind', 1, '9780062316097', 2014, 'A non-fiction book exploring the history of Homo sapiens from the Stone Age to the 21st century.'),
+('How to Avoid a Climate Disaster', 2, '9780593231575', 2021, 'Bill Gates'' insights on tackling climate change and achieving net-zero emissions.'),
+('The Emperor of All Maladies', 3, '9781439170915', 2010, 'A biography of cancer, exploring its history, treatments, and future.'),
+('The Last Thing He Told Me', 4, '9781982156945', 2021, 'A thrilling mystery novel about a woman seeking the truth after her husband''s disappearance.'),
+('Educated', 5, '9780399590504', 2018, 'A memoir about a young woman''s journey from a fundamentalist upbringing to academic success.'),
+('Where the Crawdads Sing', 1, '9780735219090', 2018, 'A coming-of-age story and murder mystery set in the North Carolina marshes.'),
+('Becoming', 6, '9781524763138', 2018, 'Michelle Obama''s memoir about her life journey.'),
+('The Subtle Art of Not Giving a F*ck', 7, '9780062457714', 2016, 'A self-help book offering a counterintuitive approach to living a good life.'),
+('The Hunger Games', 6, '9780439023528', 2008, 'Dystopian young adult novel about a televised fight to the death.'),
+('American Gods', 5, '9780380789030', 2001, 'Fantasy novel blending American mythology with old world deities.'),
+('Frankenstein', 7, '9780141439471', 1818, 'Gothic novel about a scientist who creates a grotesque creature.'),
+('Beloved', 8, '9781400033416', 1987, 'A haunting tale of slavery and its aftermath in post-Civil War Ohio.'),
+('Song of Solomon', 9, '9781400033423', 1977, 'A coming-of-age story exploring African American identity and family legacy.'),
+('One Hundred Years of Solitude', 10, '9780060883287', 1967, 'Magical realism masterpiece about the Buendía family in the fictional town of Macondo.'),
+('Love in the Time of Cholera', 11, '9780307389732', 1985, 'A love story spanning over fifty years set in the Caribbean.'),
+('Norwegian Wood', 12, '9780375704024', 1987, 'A coming-of-age story set in 1960s Tokyo dealing with love, loss, and suicide.'),
+('Kafka on the Shore', 13, '9781400079278', 2002, 'A surreal novel about a teenage boy and an elderly man whose lives intersect.'),
+('The Wind-Up Bird Chronicle', 8, '9780679775430', 1994, 'A mysterious tale of a man searching for his missing wife and cat.'),
+('The Handmaid''s Tale', 9, '9780385490818', 1985, 'Dystopian novel about a totalitarian society where women are subjugated.'),
+('Oryx and Crake', 10, '9780385503853', 2003, 'Post-apocalyptic science fiction exploring genetic engineering and environmental collapse.'),
+('The Alchemist', 11, '9780062315007', 1988, 'A philosophical novel about a shepherd''s journey to find treasure.'),
+('Things Fall Apart', 12, '9780385474542', 1958, 'A novel about pre-colonial life in Nigeria and the arrival of Europeans.'),
+('To the Lighthouse', 13, '9780156907392', 1927, 'Modernist novel exploring the passage of time and human relationships.'),
+('The Old Man and the Sea', 8, '9780684801223', 1952, 'A short novel about an aging fisherman''s struggle with a giant marlin.'),
+('I Know Why the Caged Bird Sings', 9, '9780345514400', 1969, 'Autobiography exploring themes of racism and identity.'),
+('Parable of the Sower', 10, '9781538732182', 1993, 'Science fiction novel about a young woman in a dystopian future America.'),
+('The Name of the Rose', 11, '9780156001311', 1980, 'Historical mystery set in a medieval monastery.'),
+('Midnight''s Children', 12, '9780812976717', 1981, 'Magical realism novel about India''s transition from British colonialism to independence.'),
+('White Teeth', 13, '9780375703867', 2000, 'Multi-generational novel about immigrant families in London.'),
+('Americanah', 8, '9780307455925', 2013, 'Novel about race, identity, and belonging across Nigeria and America.'),
+('Never Let Me Go', 9, '9781400078776', 2005, 'Science fiction novel about clones in an alternate history England.'),
+('The Power of the Dog', 10, '9781400096930', 2005, 'Crime novel about the war on drugs along the US-Mexico border.'),
+('Gone Girl', 11, '9780307588364', 2012, 'Psychological thriller about a marriage gone terribly wrong.'),
+('The Da Vinci Code', 12, '9780307474278', 2003, 'Mystery thriller involving religious history and conspiracy.'),
+('The Firm', 13, '9780385416344', 1991, 'Legal thriller about a young lawyer who discovers his firm''s dark secrets.'),
+('Outliers', 8, '9780316017930', 2008, 'Exploration of what makes high-achievers different.'),
+('The Tipping Point', 9, '9780316346627', 2000, 'How little things can make a big difference in social trends.');
+
+INSERT INTO BookAuthors (BookID, AuthorID) VALUES
+(1, 1), 
+(2, 2), 
+(3, 3), 
+(4, 4), 
+(5, 5), 
+(6, 6), 
+(7, 7), 
+(8, 8), 
+(9, 9), 
+(10, 10), 
+(11, 11), 
+(12, 10), 
+(13, 11), 
+(14, 12), 
+(15, 13), 
+(16, 14), 
+(17, 15), 
+(18, 16), 
+(19, 16), 
+(20, 17), 
+(21, 17), 
+(22, 18), 
+(23, 18), 
+(24, 18), 
+(25, 19), 
+(26, 19), 
+(27, 20), 
+(28, 21), 
+(29, 22), 
+(30, 23), 
+(31, 24), 
+(32, 25), 
+(33, 26), 
+(34, 27), 
+(35, 28), 
+(36, 29), 
+(37, 30), 
+(38, 31), 
+(39, 32), 
+(40, 33), 
+(41, 34), 
+(42, 35), 
+(43, 35), 
+(7, 35),  
+(8, 7);   
+
+INSERT INTO BookCategories (BookID, CategoryID) VALUES
+(1, 1), 
+(2, 2), 
+(3, 1), 
+(3, 3), 
+(4, 6), 
+(5, 7), 
+(6, 8), 
+(7, 3), 
+(8, 4), 
+(9, 3), 
+(9, 5), 
+(10, 7), 
+(11, 5), 
+(12, 6), 
+(13, 5), 
+(14, 9), 
+(15, 1), 
+(15, 11), 
+(16, 2), 
+(17, 1), 
+(18, 3), 
+(18, 5), 
+(18, 8), 
+(19, 5), 
+(19, 3), 
+(20, 2), 
+(20, 8), 
+(20, 3), 
+(21, 8), 
+(21, 3), 
+(22, 8), 
+(22, 11), 
+(23, 2), 
+(23, 6), 
+(23, 11), 
+(24, 2), 
+(24, 6), 
+(24, 7), 
+(25, 1), 
+(25, 19), 
+(26, 1), 
+(26, 12), 
+(27, 13), 
+(27, 18), 
+(27, 10), 
+(28, 3), 
+(28, 19), 
+(29, 8), 
+(29, 13), 
+(30, 12), 
+(30, 13), 
+(31, 5), 
+(31, 3), 
+(31, 19), 
+(32, 1), 
+(32, 18), 
+(32, 19), 
+(33, 6), 
+(33, 3), 
+(33, 18), 
+(34, 2), 
+(34, 3), 
+(34, 19), 
+(35, 8), 
+(35, 3), 
+(36, 8), 
+(36, 19), 
+(36, 3), 
+(37, 1), 
+(37, 8), 
+(37, 13), 
+(38, 7), 
+(38, 6), 
+(38, 19), 
+(39, 7), 
+(39, 6), 
+(39, 8), 
+(40, 7), 
+(40, 6), 
+(40, 18), 
+(40, 3), 
+(41, 7), 
+(41, 6), 
+(41, 15), 
+(42, 15), 
+(42, 10), 
+(42, 13), 
+(43, 15), 
+(43, 10), 
+(43, 19); 
+
+INSERT INTO BookCopies (BookID, BranchID, Barcode, Status, PurchaseDate) VALUES
+(1, 1, 'BC0001', 'Available', '2020-01-01'), 
+(1, 1, 'BC0002', 'On Loan', '2020-01-01'),   
+(1, 2, 'BC0003', 'Available', '2020-01-05'), 
+(2, 1, 'BC0004', 'Reserved', '2021-06-15'),  
+(2, 2, 'BC0005', 'On Loan', '2021-06-15'),   
+(2, 3, 'BC0006', 'Available', '2021-06-20'), 
+(3, 1, 'BC0007', 'Available', '2019-03-10'), 
+(3, 2, 'BC0008', 'On Loan', '2019-03-10'),   
+(4, 3, 'BC0009', 'Available', '2022-02-01'), 
+(4, 4, 'BC0010', 'Available', '2022-02-01'), 
+(5, 4, 'BC0011', 'On Loan', '2023-05-20'),   
+(6, 1, 'BC0012', 'Available', '2018-09-01'), 
+(6, 5, 'BC0013', 'Available', '2018-09-05'), 
+(7, 2, 'BC0014', 'Available', '2020-11-11'), 
+(7, 3, 'BC0015', 'On Loan', '2020-11-11'),   
+(8, 3, 'BC0016', 'Available', '2022-01-01'), 
+(9, 4, 'BC0017', 'Available', '2021-04-01'), 
+(10, 1, 'BC0018', 'Available', '2023-07-01'), 
+(10, 2, 'BC0019', 'Reserved', '2023-07-05'), 
+(11, 2, 'BC0020', 'Available', '2019-10-01'), 
+(12, 3, 'BC0021', 'On Loan', '2022-08-01'),   
+(13, 4, 'BC0022', 'Available', '2020-03-01'), 
+(14, 5, 'BC0023', 'Available', '2019-05-10'), 
+(15, 1, 'BC0024', 'On Loan', '2010-01-01'),   
+(15, 2, 'BC0025', 'Available', '2010-01-01'), 
+(16, 3, 'BC0026', 'Available', '2005-01-01'), 
+(17, 4, 'BC0027', 'Available', '2015-01-01'), 
+(18, 1, 'BC0028', 'Available', '2021-01-15'),
+(18, 2, 'BC0029', 'On Loan', '2021-01-15'),
+(18, 3, 'BC0030', 'Reserved', '2021-01-20'),
+(18, 4, 'BC0031', 'Available', '2021-01-25'),
+(18, 5, 'BC0032', 'Lost', '2020-12-01'),
+(30, 1, 'BC0082', 'Lost', '2019-01-01'), 
+(30, 2, 'BC0083', 'Maintenance', '2019-01-01'),
+(30, 3, 'BC0084', 'On Loan', '2019-01-01'),
+(20, 1, 'BC0033', 'Available', '2020-06-10'),
+(20, 2, 'BC0034', 'On Loan', '2020-06-10'),
+(20, 3, 'BC0035', 'Maintenance', '2020-06-15'),
+(20, 4, 'BC0036', 'Available', '2020-06-20'),
+(22, 1, 'BC0037', 'Reserved', '2019-08-01'),
+(22, 2, 'BC0038', 'Available', '2019-08-01'),
+(22, 5, 'BC0039', 'On Loan', '2019-08-05'),
+(25, 1, 'BC0040', 'Available', '2018-03-01'),
+(25, 2, 'BC0041', 'On Loan', '2018-03-01'),
+(25, 3, 'BC0042', 'Available', '2018-03-05'),
+(25, 4, 'BC0043', 'Reserved', '2018-03-10'),
+(25, 5, 'BC0044', 'Available', '2018-03-15'),
+(27, 1, 'BC0045', 'Available', '2017-01-01'),
+(27, 1, 'BC0046', 'On Loan', '2017-01-01'),
+(27, 2, 'BC0047', 'Available', '2017-01-05'),
+(27, 2, 'BC0048', 'Reserved', '2017-01-05'),
+(27, 3, 'BC0049', 'On Loan', '2017-01-10'),
+(27, 4, 'BC0050', 'Available', '2017-01-15'),
+(27, 5, 'BC0051', 'Available', '2017-01-20'),
+(39, 1, 'BC0052', 'On Loan', '2022-09-01'),
+(39, 2, 'BC0053', 'Available', '2022-09-01'),
+(39, 3, 'BC0054', 'Reserved', '2022-09-05'),
+(40, 1, 'BC0055', 'Available', '2015-01-01'),
+(40, 2, 'BC0056', 'On Loan', '2015-01-01'),
+(40, 3, 'BC0057', 'Available', '2015-01-05'),
+(40, 4, 'BC0058', 'Lost', '2014-12-01'),
+(42, 1, 'BC0059', 'Available', '2020-11-01'),
+(42, 2, 'BC0060', 'On Loan', '2020-11-01'),
+(42, 3, 'BC0061', 'Available', '2020-11-05'),
+(19, 1, 'BC0062', 'Maintenance', '2021-02-01'),
+(21, 2, 'BC0063', 'Lost', '2019-05-01'),
+(23, 3, 'BC0064', 'Available', '2022-01-01'),
+(24, 4, 'BC0065', 'Reserved', '2021-11-01'),
+(26, 5, 'BC0066', 'On Loan', '2023-01-01'),
+(28, 1, 'BC0067', 'Available', '2020-09-01'),
+(30, 2, 'BC0068', 'Available', '2019-01-01'),
+(32, 3, 'BC0069', 'Reserved', '2022-06-01'),
+(34, 4, 'BC0070', 'On Loan', '2021-07-01'),
+(36, 5, 'BC0071', 'Available', '2023-02-01'),
+(27, 1, 'BC0072', 'Available', '2017-01-25'), 
+(27, 1, 'BC0073', 'Lost', '2016-12-01'), 
+(2, 1, 'BC0074', 'Available', '2021-06-25'), 
+(2, 1, 'BC0075', 'Maintenance', '2021-06-30'), 
+(33, 2, 'BC0076', 'Available', '2023-01-01'), 
+(29, 3, 'BC0077', 'Reserved', '2022-05-01'), 
+(31, 4, 'BC0078', 'On Loan', '2021-09-01'), 
+(1, 5, 'BC0079', 'Available', '2020-01-10'), 
+(3, 4, 'BC0080', 'Available', '2019-03-15'), 
+(6, 2, 'BC0081', 'On Loan', '2018-09-10');
+
+INSERT INTO Users (RoleID, FirstName, LastName, DateOfBirth, Address, Phone, Email, PasswordHash, JoinDate, IsActive) VALUES
+(1, 'Alice', 'Johnson', '1990-05-10', '123 Elm St, Anytown', '555-1234', 'alice.johnson@example.com', 'hash_alice', '2022-01-15',1),
+(2, 'Bob', 'Smith', '1985-08-20', '456 Oak St, Anytown', '555-5678', 'bob.smith@example.com', 'hash_bob', '2021-03-01',1),
+(3, 'Carol', 'White', '1970-02-15', '789 Pine St, Anytown', '555-9012', 'carol.white@example.com', 'hash_carol', '2020-07-10',1),
+(1, 'David', 'Brown', '1992-11-25', '101 Maple St, Anytown', '555-3456', 'david.brown@example.com', 'hash_david', '2023-02-20',1),
+(1, 'Eve', 'Green', '1988-03-01', '202 Birch St, Anytown', '555-7890', 'eve.green@example.com', 'hash_eve', '2023-04-01',1),
+(2, 'Frank', 'Black', '1975-06-30', '303 Cedar St, Anytown', '555-2109', 'frank.black@example.com', 'hash_frank', '2021-11-11',1),
+(1, 'Grace', 'Lee', '1995-12-05', '404 Willow St, Anytown', '555-4321', 'grace.lee@example.com', 'hash_grace', '2024-01-01',1),
+(1, 'Henry', 'Davis', '1980-07-17', '505 Poplar St, Anytown', '555-8765', 'henry.davis@example.com', 'hash_henry', '2022-09-10',1),
+(1, 'Ivy', 'Chen', '1998-01-22', '606 Spruce St, Anytown', '555-6543', 'ivy.chen@example.com', 'hash_ivy', '2024-03-15',1),
+(2, 'Judy', 'Miller', '1978-04-04', '707 Fir St, Anytown', '555-3210', 'judy.miller@example.com', 'hash_judy', '2022-06-01',1),
+(1, 'Jack', 'Wilson', '1993-04-12', '808 Ash St, Anytown', '555-9999', 'jack.wilson@example.com', 'hash_jack', '2020-05-15', 1),
+(1, 'Kate', 'Taylor', '1987-09-08', '909 Elm St, Anytown', '555-8888', 'kate.taylor@example.com', 'hash_kate', '2021-01-20', 1),
+(1, 'Leo', 'Anderson', '1999-12-03', '1010 Oak St, Anytown', '555-7777', 'leo.anderson@example.com', 'hash_leo', '2023-08-10', 1),
+(1, 'Mia', 'Thomas', '1985-06-18', '1111 Pine St, Anytown', '555-6666', 'mia.thomas@example.com', 'hash_mia', '2022-03-25', 1),
+(1, 'Nick', 'Jackson', '1991-01-07', '1212 Maple St, Anytown', '555-5555', 'nick.jackson@example.com', 'hash_nick', '2024-06-01', 1),
+(1, 'Olivia', 'White', '1996-08-25', '1313 Birch St, Anytown', '555-4444', 'olivia.white@example.com', 'hash_olivia', '2021-11-30', 1),
+(1, 'Paul', 'Harris', '1982-03-14', '1414 Cedar St, Anytown', '555-3333', 'paul.harris@example.com', 'hash_paul', '2020-09-12', 1),
+(1, 'Quinn', 'Martin', '1994-10-29', '1515 Willow St, Anytown', '555-2222', 'quinn.martin@example.com', 'hash_quinn', '2023-12-05', 1),
+(2, 'Ruby', 'Garcia', '1979-05-22', '1616 Poplar St, Anytown', '555-1111', 'ruby.garcia@example.com', 'hash_ruby', '2019-02-28', 1),
+(2, 'Sam', 'Rodriguez', '1986-11-16', '1717 Spruce St, Anytown', '555-0000', 'sam.rodriguez@example.com', 'hash_sam', '2020-08-15', 1),
+(2, 'Tina', 'Lewis', '1983-07-04', '1818 Fir St, Anytown', '555-9090', 'tina.lewis@example.com', 'hash_tina', '2021-05-10', 1),
+(1, 'Uma', 'Clark', '1990-02-11', '1919 Ash St, Anytown', '555-8080', 'uma.clark@example.com', 'hash_uma', '2018-01-01', 0),
+(1, 'Victor', 'Walker', '1988-09-30', '2020 Elm St, Anytown', '555-7070', 'victor.walker@example.com', 'hash_victor', '2017-06-15', 0);
+
+INSERT INTO Loans (CopyID, UserID, LoanDate, DueDate, ReturnDate, FineApplied) VALUES
+(2, 1, '2025-05-10', '2025-05-24', NULL, 0.00), 
+(5, 4, '2025-05-01', '2025-05-15', NULL, 0.00), 
+(8, 5, '2025-05-20', '2025-06-03', NULL, 0.00), 
+(11, 7, '2025-05-15', '2025-05-29', NULL, 0.00), 
+(15, 8, '2025-04-20', '2025-05-04', NULL, 0.00), 
+(21, 9, '2025-05-22', '2025-06-05', NULL, 0.00), 
+(24, 1, '2025-05-05', '2025-05-19', NULL, 0.00), 
+(84, 14, '2025-05-01', '2025-05-15', NULL, 0.00),
+(1, 20, '2024-01-01', '2024-01-15', '2024-01-14', 0.00), 
+(1, 19, '2024-02-01', '2024-02-15', '2024-02-16', 0.50), 
+(1, 18, '2024-03-01', '2024-03-15', '2024-03-12', 0.00), 
+(1, 17, '2024-04-01', '2024-04-15', '2024-04-20', 2.50), 
+(1, 16, '2024-05-01', '2024-05-15', '2024-05-14', 0.00),
+(45, 11, '2024-01-15', '2024-01-29', '2024-01-28', 0.00),
+(45, 12, '2024-02-15', '2024-03-01', '2024-03-05', 2.00),
+(45, 13, '2024-03-15', '2024-03-29', '2024-03-25', 0.00),
+(45, 14, '2024-04-15', '2024-04-29', '2024-05-10', 5.50),
+(45, 15, '2024-05-15', '2024-05-29', '2024-05-28', 0.00),
+(1, 4, '2025-03-01', '2025-03-15', '2025-03-14', 0.00), 
+(3, 5, '2025-04-10', '2025-04-24', '2025-04-26', 1.00), 
+(4, 1, '2025-02-01', '2025-02-15', '2025-02-15', 0.00), 
+(6, 7, '2025-01-05', '2025-01-19', '2025-01-25', 3.00), 
+(7, 8, '2025-03-10', '2025-03-24', '2025-03-20', 0.00), 
+(9, 9, '2025-04-15', '2025-04-29', '2025-04-28', 0.00), 
+(12, 1, '2025-01-20', '2025-02-03', '2025-02-03', 0.00), 
+(13, 4, '2025-02-25', '2025-03-10', '2025-03-10', 0.00), 
+(14, 5, '2025-03-05', '2025-03-19', '2025-03-19', 0.00), 
+(29, 11, '2025-05-21', '2025-06-04', NULL, 0.00), 
+(34, 12, '2025-05-18', '2025-06-01', NULL, 0.00), 
+(39, 13, '2025-05-15', '2025-05-29', NULL, 0.00), 
+(41, 14, '2025-05-12', '2025-05-26', NULL, 0.00), 
+(46, 15, '2025-05-10', '2025-05-24', NULL, 0.00), 
+(52, 16, '2025-05-08', '2025-05-22', NULL, 0.00), 
+(56, 17, '2025-05-05', '2025-05-19', NULL, 0.00), 
+(60, 18, '2025-04-25', '2025-05-09', NULL, 0.00), 
+(66, 19, '2025-05-22', '2025-06-05', NULL, 0.00), 
+(70, 20, '2025-05-20', '2025-06-03', NULL, 0.00), 
+(28, 11, '2025-03-15', '2025-03-29', '2025-03-28', 0.00), 
+(33, 12, '2025-02-20', '2025-03-06', '2025-03-10', 2.00), 
+(37, 13, '2025-04-01', '2025-04-15', '2025-04-14', 0.00), 
+(40, 14, '2025-01-10', '2025-01-24', '2025-01-30', 3.00), 
+(45, 15, '2025-03-20', '2025-04-03', '2025-04-01', 0.00), 
+(53, 16, '2025-02-15', '2025-03-01', '2025-02-28', 0.00), 
+(55, 17, '2025-01-05', '2025-01-19', '2025-01-25', 3.00), 
+(59, 18, '2025-04-10', '2025-04-24', '2025-04-20', 0.00), 
+(64, 19, '2025-03-01', '2025-03-15', '2025-03-20', 2.50), 
+(67, 20, '2025-02-10', '2025-02-24', '2025-02-24', 0.00), 
+(47, 1, '2025-04-05', '2025-04-19', '2025-04-18', 0.00), 
+(48, 4, '2025-03-10', '2025-03-24', '2025-03-28', 2.00), 
+(49, 5, '2025-02-01', '2025-02-15', '2025-02-14', 0.00), 
+(61, 7, '2025-01-15', '2025-01-29', '2025-02-05', 3.50), 
+(72, 1, '2025-01-15', '2025-01-29', '2025-01-28', 0.00), 
+(74, 1, '2025-02-10', '2025-02-24', '2025-02-25', 0.50), 
+(79, 1, '2025-03-20', '2025-04-03', '2025-04-02', 0.00), 
+(81, 1, '2025-04-15', '2025-04-29', NULL, 0.00), 
+(76, 4, '2025-01-01', '2025-01-15', '2025-01-14', 0.00), 
+(77, 4, '2025-02-01', '2025-02-15', '2025-02-20', 2.50), 
+(80, 4, '2025-03-01', '2025-03-15', '2025-03-14', 0.00), 
+(75, 4, '2025-04-01', '2025-04-15', '2025-04-16', 0.50), 
+(73, 5, '2024-12-01', '2024-12-15', '2024-12-20', 2.50), 
+(45, 7, '2024-11-15', '2024-11-29', '2024-11-28', 0.00), 
+(47, 8, '2024-10-20', '2024-11-03', '2024-11-05', 1.00), 
+(49, 9, '2024-09-10', '2024-09-24', '2024-09-23', 0.00),
+(33, 11, '2024-08-01', '2024-08-15', '2024-08-14', 0.00), 
+(36, 11, '2024-09-01', '2024-09-15', '2024-09-16', 0.50), 
+(71, 12, '2024-07-15', '2024-07-29', '2024-07-28', 0.00), 
+(68, 13, '2024-06-20', '2024-07-04', '2024-07-10', 3.00); 
+
+INSERT INTO Reservations (CopyID, UserID, ReservationDate, ExpiryDate, Status) VALUES
+(5, 1, '2025-05-22', '2025-05-29', 'Active'),    
+(1, 5, '2025-05-23', '2025-05-30', 'Active'),    
+(19, 7, '2025-05-20', '2025-05-27', 'Active'),   
+(2, 8, '2025-05-18', '2025-05-25', 'Active'),    
+(10, 9, '2025-05-19', '2025-05-26', 'Active'),   
+(46, 19, '2025-05-25', '2025-06-01', 'Active'), 
+(46, 20, '2025-05-24', '2025-05-31', 'Active'), 
+(47, 11, '2025-05-23', '2025-05-30', 'Active'), 
+(2, 21, '2025-05-20', '2025-05-27', 'Active'), 
+(74, 22, '2025-05-19', '2025-05-26', 'Active'), 
+(72, 1, '2025-01-01', '2025-01-08', 'Completed'), 
+(72, 4, '2025-01-10', '2025-01-17', 'Completed'), 
+(72, 5, '2025-01-20', '2025-01-27', 'Cancelled'), 
+(72, 7, '2025-02-01', '2025-02-08', 'Completed'),
+(3, 4, '2025-05-01', '2025-05-08', 'Cancelled'), 
+(11, 1, '2025-04-10', '2025-04-17', 'Completed'), 
+(16, 7, '2025-03-01', '2025-03-08', 'Cancelled'), 
+(30, 11, '2025-05-23', '2025-05-30', 'Active'),   
+(37, 12, '2025-05-22', '2025-05-29', 'Active'),   
+(43, 13, '2025-05-21', '2025-05-28', 'Active'),   
+(54, 14, '2025-05-20', '2025-05-27', 'Active'),   
+(69, 15, '2025-05-19', '2025-05-26', 'Active'),   
+(29, 16, '2025-05-24', '2025-05-31', 'Active'),   
+(34, 17, '2025-05-23', '2025-05-30', 'Active'),   
+(46, 18, '2025-05-22', '2025-05-29', 'Active'),   
+(28, 19, '2025-05-15', '2025-05-22', 'Completed'), 
+(33, 20, '2025-05-10', '2025-05-17', 'Completed'), 
+(45, 1, '2025-04-20', '2025-04-27', 'Completed'),  
+(55, 4, '2025-04-15', '2025-04-22', 'Completed'),  
+(82, 15, '2025-05-10', '2025-05-17', 'Active'), 
+(83, 16, '2025-05-12', '2025-05-19', 'Active'), 
+(84, 17, '2025-05-14', '2025-05-21', 'Active'),
+(40, 5, '2025-05-01', '2025-05-08', 'Cancelled'),  
+(50, 7, '2025-04-25', '2025-05-02', 'Cancelled'),  
+(57, 8, '2025-04-20', '2025-04-27', 'Cancelled'),  
+(62, 9, '2025-04-10', '2025-04-17', 'Cancelled');  
+
+INSERT INTO Fines (UserID, LoanID, Amount, Paid, DateIssued, DatePaid) VALUES
+(4, 2, 2.00, 0, '2025-05-16', NULL), 
+(8, 5, 3.50, 0, '2025-05-05', NULL), 
+(1, 7, 1.00, 0, '2025-05-20', NULL), 
+(5, 3, 1.00, 1, '2025-04-27', '2025-04-28'), 
+(7, 6, 3.00, 1, '2025-01-26', '2025-01-28'), 
+(1, NULL, 5.00, 0, '2025-05-18', NULL), 
+(9, NULL, 0.75, 1, '2025-05-10', '2025-05-10'), 
+(17, 17, 1.00, 0, '2025-05-20', NULL), 
+(18, 18, 7.50, 0, '2025-05-10', NULL), 
+(12, 22, 2.00, 0, '2025-03-11', NULL), 
+(14, 24, 3.00, 0, '2025-01-31', NULL), 
+(19, 29, 2.50, 0, '2025-03-21', NULL), 
+(17, 27, 3.00, 0, '2025-01-26', NULL), 
+(7, 31, 3.50, 0, '2025-02-06', NULL),  
+(4, 23, 2.00, 0, '2025-03-29', NULL),  
+(1, 35, 0.50, 1, '2025-02-26', '2025-03-01'), 
+(4, 37, 2.50, 0, '2025-02-21', NULL), 
+(4, 39, 0.50, 0, '2025-04-17', NULL), 
+(5, 34, 2.50, 1, '2024-12-21', '2024-12-25'), 
+(8, 38, 1.00, 1, '2024-11-06', '2024-11-10'), 
+(13, 42, 3.00, 0, '2024-07-11', NULL), 
+(11, NULL, 25.00, 0, '2025-05-01', NULL), 
+(12, NULL, 1.00, 1, '2025-04-15', '2025-04-16'), 
+(21, NULL, 50.00, 0, '2025-03-01', NULL), 
+(22, NULL, 2.00, 0, '2025-02-15', NULL),
+(12, 22, 2.00, 1, '2025-03-11', '2025-03-15'), 
+(14, 24, 3.00, 1, '2025-01-31', '2025-02-05'), 
+(19, 29, 2.50, 1, '2025-03-21', '2025-03-25'), 
+(11, NULL, 2.00, 0, '2025-05-15', NULL), 
+(16, NULL, 1.50, 1, '2025-05-01', '2025-05-02'), 
+(20, NULL, 0.50, 1, '2025-04-20', '2025-04-20'), 
+(13, NULL, 10.00, 0, '2025-04-15', NULL), 
+(15, NULL, 3.00, 0, '2025-04-10', NULL), 
+(18, NULL, 5.00, 1, '2025-03-20', '2025-03-25'); 
+
+INSERT INTO Payments (UserID, FineID, Amount, PaymentDate, PaymentMethod) VALUES
+(5, 4, 1.00, '2025-04-28', 'Credit Card'),
+(7, 5, 3.00, '2025-01-28', 'Cash'),
+(9, 7, 0.75, '2025-05-10', 'Mobile Pay'),
+(1, 6, 2.00, '2025-05-20', 'Cash'), 
+(12, 12, 2.00, '2025-03-15', 'Credit Card'), 
+(14, 13, 3.00, '2025-02-05', 'Cash'), 
+(19, 14, 2.50, '2025-03-25', 'Debit Card'), 
+(16, 16, 1.50, '2025-05-02', 'Mobile Pay'), 
+(20, 17, 0.50, '2025-04-20', 'Cash'), 
+(18, 19, 5.00, '2025-03-25', 'Credit Card'), 
+(1, 20, 0.25, '2025-02-28', 'Cash'), 
+(1, 20, 0.25, '2025-03-01', 'Cash'), 
+(4, 21, 1.00, '2025-02-25', 'Credit Card'), 
+(5, 23, 2.50, '2024-12-25', 'Debit Card'), 
+(8, 26, 1.00, '2024-11-10', 'Mobile Pay'), 
+(12, 28, 1.00, '2025-04-16', 'Cash'), 
+(9, NULL, 20.00, '2025-05-15', 'Credit Card'), 
+(16, NULL, 10.00, '2025-05-10', 'Bank Transfer'), 
+(11, 27, 10.00, '2025-05-05', 'Cash'), 
+(11, 27, 10.00, '2025-05-15', 'Cash'), 
+(21, 29, 25.00, '2025-03-10', 'Credit Card'), 
+(2, NULL, 0.00, '2025-05-20', 'Staff Waiver'), 
+(6, NULL, 0.00, '2025-05-18', 'Staff Discount'), 
+(10, NULL, 0.00, '2025-05-16', 'Professional Courtesy'),
+(11, 15, 1.00, '2025-05-20', 'Cash'), 
+(13, 18, 5.00, '2025-04-20', 'Credit Card'), 
+(17, 11, 1.50, '2025-05-22', 'Mobile Pay'), 
+(1, 6, 3.00, '2025-05-22', 'Debit Card'), 
+(4, 8, 1.00, '2025-04-01', 'Cash'), 
+(4, 8, 1.00, '2025-04-15', 'Cash'), 
+(5, NULL, 10.00, '2025-05-01', 'Credit Card'), 
+(8, NULL, 15.00, '2025-04-25', 'Bank Transfer'), 
+(10, NULL, 5.00, '2025-05-10', 'Mobile Pay'); 
+
+INSERT INTO AuditLogs (UserID, Action, Details) VALUES
+(2, 'User Update', 'Updated phone number for Bob Smith'),
+(3, 'Book Update', 'Changed description for BookID 1'),
+(2, 'Category Added', 'New category: Self-Help'),
+(6, 'Branch Update', 'Updated address for North Branch'),
+(10, 'Publisher Added', 'New publisher: Bloomsbury Publishing'),
+(3, 'User Created', 'New user registered: Jack Wilson (UserID: 11)'),
+(3, 'User Updated', 'Updated address for Kate Taylor (UserID: 12)'),
+(3, 'User Deactivated', 'Deactivated user Uma Clark (UserID: 22) - inactive account'),
+(6, 'User Reactivated', 'Reactivated user Victor Walker (UserID: 23)'),
+(11, 'Multiple Reservations', 'Jack Wilson has 3 active reservations - monitoring'),
+(4, 'Frequent Late Returns', 'David Brown - 4th late return this year, sent warning notice'),
+(1, 'Account Review', 'Alice Johnson - account in good standing, eligible for extended loans'),
+(2, 'Inter-branch Transfer', 'Transferred Copy BC0045 from Central to East Branch'),
+(6, 'Branch Coordination', 'Coordinated reservation fulfillment across 3 branches'),
+(10, 'Cross-branch Pickup', 'Enabled cross-branch pickup for UserID: 15'),
+(3, 'Usage Report', 'Generated monthly usage report - Science Fiction most popular'),
+(3, 'Overdue Analysis', 'Analyzed overdue patterns - Fridays have highest late returns'),
+(3, 'Collection Development', 'Ordered 5 more copies of The Alchemist based on demand'),
+(2, 'VIP Service', 'Processed priority reservation for UserID: 3 (Admin)'),
+(6, 'Accessibility Support', 'Provided large print version for UserID: 17'),
+(10, 'Student Discount', 'Applied student discount for UserID: 13 (under 25)'),
+(2, 'Data Correction', 'Corrected loan date for LoanID: 35 - system clock error'),
+(3, 'Barcode Reprint', 'Reprinted damaged barcode for Copy BC0055'),
+(6, 'Account Merge', 'Merged duplicate accounts for Kate Taylor'),
+(3, 'SLA Metric', 'Average processing time: 2.3 minutes per transaction'),
+(3, 'Customer Satisfaction', 'Monthly satisfaction survey: 4.7/5.0 rating'),
+(3, 'System Uptime', '99.8% system availability this month'),
+(2, 'Book Added', 'New book added: Beloved by Toni Morrison (BookID: 18)'),
+(6, 'Book Updated', 'Updated description for One Hundred Years of Solitude (BookID: 20)'),
+(10, 'Copy Added', 'New copy added: Barcode BC0028 for Beloved'),
+(2, 'Copy Status Changed', 'Copy BC0032 marked as Lost - Beloved'),
+(6, 'Copy Status Changed', 'Copy BC0035 moved to Maintenance - One Hundred Years'),
+(2, 'Loan Extended', 'Extended due date for LoanID: 17 - Paul Harris'),
+(6, 'Loan Cancelled', 'Cancelled loan for Copy BC0062 due to maintenance'),
+(10, 'Late Return Processed', 'Processed late return for LoanID: 22 - Kate Taylor'),
+(2, 'Fine Issued', 'Issued fine of $2.00 to Kate Taylor for late return'),
+(2, 'Fine Waived', 'Waived $0.50 fine for Sam Rodriguez - first offense'),
+(6, 'Payment Processed', 'Processed payment of $3.00 from Mia Thomas'),
+(10, 'Payment Refunded', 'Refunded $1.00 to Quinn Martin - overpayment'),
+(2, 'Reservation Created', 'Created reservation for Jack Wilson - Copy BC0030'),
+(6, 'Reservation Expired', 'Expired reservation for Copy BC0037 - not collected'),
+(10, 'Reservation Fulfilled', 'Fulfilled reservation for Ruby Garcia - Copy BC0028'),
+(3, 'Database Backup', 'Performed scheduled database backup'),
+(3, 'System Update', 'Updated library management system to version 2.1'),
+(3, 'Branch Update', 'Updated operating hours for Central Library'),
+(2, 'Inventory Check', 'Completed inventory check for Central Library'),
+(6, 'Book Transfer', 'Transferred 5 copies from Central to East Branch'),
+(10, 'Damaged Item', 'Reported damaged copy BC0058 - The Da Vinci Code'),
+(1, 'Profile Updated', 'Alice Johnson updated contact information'),
+(4, 'Password Changed', 'David Brown changed account password'),
+(7, 'Email Updated', 'Grace Lee updated email address'),
+(11, 'Account Login', 'Jack Wilson logged into online account'),
+(15, 'Preference Updated', 'Nick Jackson updated notification preferences'),
+(3, 'Policy Updated', 'Updated late return fine policy - $0.50 per day'),
+(3, 'New Category Added', 'Added new category: Health & Fitness'),
+(3, 'Publisher Added', 'Added new publisher: Faber & Faber'),
+(3, 'Branch Policy Updated', 'Updated loan period for DVDs to 7 days'),
+(2, 'Event Created', 'Created Summer Reading Challenge event'),
+(6, 'Promotion Started', 'Started Fine Forgiveness Week promotion'),
+(10, 'Book Club Meeting', 'Hosted monthly book club discussion'),
+(3, 'System Error', 'Resolved barcode scanner connectivity issue'),
+(3, 'Data Recovery', 'Recovered corrupted user data for UserID: 15'),
+(2, 'Equipment Maintenance', 'Performed maintenance on self-checkout kiosks');
+
+CREATE VIEW AvailableCopies AS
+SELECT
+    bc.CopyID,
+    b.Title,
+    group_concat(a.FirstName || ' ' || a.LastName, ', ') AS Authors,
+    group_concat(DISTINCT c.Name) AS Categories,
+    br.Name AS Branch,
+    bc.Barcode,
+    bc.Status
+FROM BookCopies bc
+JOIN Books b ON bc.BookID = b.BookID
+LEFT JOIN BookAuthors ba ON b.BookID = ba.BookID
+LEFT JOIN Authors a ON ba.AuthorID = a.AuthorID
+LEFT JOIN BookCategories bcg ON b.BookID = bcg.BookID
+LEFT JOIN Categories c ON bcg.CategoryID = c.CategoryID
+JOIN Branches br ON bc.BranchID = br.BranchID
+WHERE bc.Status = 'Available'
+GROUP BY bc.CopyID;
+
+CREATE VIEW UserLoans AS
+SELECT
+    l.LoanID,
+    u.UserID,
+    u.FirstName || ' ' || u.LastName AS UserName,
+    bc.CopyID,
+    b.Title,
+    l.LoanDate,
+    l.DueDate,
+    l.ReturnDate,
+    br.Name AS BranchName,
+    bc.Barcode
+FROM Loans l
+JOIN Users u ON l.UserID = u.UserID
+JOIN BookCopies bc ON l.CopyID = bc.CopyID
+JOIN Books b ON bc.BookID = b.BookID
+JOIN Branches br ON bc.BranchID = br.BranchID
+WHERE l.ReturnDate IS NULL;
+
+CREATE VIEW OverdueLoans AS
+SELECT
+    l.LoanID,
+    u.UserID,
+    u.FirstName || ' ' || u.LastName AS UserName,
+    b.Title,
+    br.Name AS BranchName,
+    l.LoanDate,
+    l.DueDate,
+    CAST(julianday('now') - julianday(l.DueDate) AS INTEGER) AS DaysOverdue
+FROM Loans l
+JOIN Users u ON l.UserID = u.UserID
+JOIN BookCopies bc ON l.CopyID = bc.CopyID
+JOIN Books b ON bc.BookID = b.BookID
+JOIN Branches br ON bc.BranchID = br.BranchID
+WHERE l.ReturnDate IS NULL
+  AND l.DueDate < date('now');
+
+CREATE VIEW AllReservations AS
+SELECT
+    r.ReservationID,
+    u.UserID,
+    u.FirstName || ' ' || u.LastName AS UserName,
+    bc.CopyID,
+    b.Title,
+    br.Name AS BranchName,
+    r.ReservationDate,
+    r.ExpiryDate,
+    r.Status
+FROM Reservations r
+JOIN Users u ON r.UserID = u.UserID
+JOIN BookCopies bc ON r.CopyID = bc.CopyID
+JOIN Books b ON bc.BookID = b.BookID
+JOIN Branches br ON bc.BranchID = br.BranchID;
+
+CREATE VIEW ActiveFines AS
+SELECT
+    f.FineID,
+    u.UserID,
+    u.FirstName || ' ' || u.LastName AS UserName,
+    l.LoanID,
+    b.Title AS BookTitle,
+    f.Amount,
+    f.Paid,
+    f.DateIssued,
+    f.DatePaid
+FROM Fines f
+JOIN Users u ON f.UserID = u.UserID
+LEFT JOIN Loans l ON f.LoanID = l.LoanID
+LEFT JOIN BookCopies bc ON l.CopyID = bc.CopyID
+LEFT JOIN Books b ON bc.BookID = b.BookID
+WHERE f.Paid = 0;
+
+CREATE TRIGGER trg_after_loan_insert
+AFTER INSERT ON Loans
+FOR EACH ROW
+BEGIN
+    UPDATE BookCopies
+    SET Status = 'On Loan'
+    WHERE CopyID = NEW.CopyID;
+END;
+
+CREATE TRIGGER trg_after_loan_update_return
+AFTER UPDATE OF ReturnDate ON Loans
+FOR EACH ROW
+WHEN NEW.ReturnDate IS NOT NULL
+BEGIN
+    UPDATE BookCopies
+    SET Status = 'Available'
+    WHERE CopyID = NEW.CopyID;
+END;
+
+CREATE TRIGGER trg_before_loan_insert_check_availability
+BEFORE INSERT ON Loans
+FOR EACH ROW
+BEGIN
+    SELECT
+    CASE
+        WHEN (SELECT Status FROM BookCopies WHERE CopyID = NEW.CopyID) != 'Available'
+        THEN RAISE(ABORT, 'Cannot loan a book copy that is not available')
+    END;
+END;
+
+CREATE TRIGGER trg_after_reservation_insert
+AFTER INSERT ON Reservations
+FOR EACH ROW
+WHEN (SELECT Status FROM BookCopies WHERE CopyID = NEW.CopyID) = 'Available'
+BEGIN
+    UPDATE BookCopies
+    SET Status = 'Reserved'
+    WHERE CopyID = NEW.CopyID;
+END;
+
+CREATE TRIGGER trg_after_reservation_update_status
+AFTER UPDATE OF Status ON Reservations
+FOR EACH ROW
+WHEN NEW.Status IN ('Cancelled', 'Completed')
+BEGIN
+    UPDATE BookCopies
+    SET Status = 'Available'
+    WHERE CopyID = NEW.CopyID
+      AND NOT EXISTS (
+        SELECT 1 FROM Reservations
+        WHERE CopyID = NEW.CopyID
+          AND Status = 'Active'
+      );
+END;
+
+CREATE TRIGGER trg_after_loan_insert_audit
+AFTER INSERT ON Loans
+FOR EACH ROW
+BEGIN
+    INSERT INTO AuditLogs(UserID, Action, Details)
+    VALUES (NEW.UserID, 'Loan Created', 'LoanID: ' || NEW.LoanID || ', CopyID: ' || NEW.CopyID);
+END;
