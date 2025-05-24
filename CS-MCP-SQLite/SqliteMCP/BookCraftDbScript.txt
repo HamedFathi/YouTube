@@ -248,7 +248,7 @@ INSERT INTO Authors (FirstName, LastName, BirthDate, Country) VALUES
 ('Neil', 'Gaiman', '1960-11-10', 'United Kingdom'),
 ('Mary', 'Shelley', '1797-08-30', 'United Kingdom'),
 ('Toni', 'Morrison', '1931-02-18', 'USA'),
-('Gabriel', 'García Márquez', '1927-03-06', 'Colombia'),
+('Gabriel', 'Garcia Marquez', '1927-03-06', 'Colombia'),
 ('Haruki', 'Murakami', '1949-01-12', 'Japan'),
 ('Margaret', 'Atwood', '1939-11-18', 'Canada'),
 ('Paulo', 'Coelho', '1947-08-24', 'Brazil'),
@@ -288,7 +288,7 @@ INSERT INTO Books (Title, PublisherID, ISBN, PublishedYear, Description) VALUES
 ('Frankenstein', 7, '9780141439471', 1818, 'Gothic novel about a scientist who creates a grotesque creature.'),
 ('Beloved', 8, '9781400033416', 1987, 'A haunting tale of slavery and its aftermath in post-Civil War Ohio.'),
 ('Song of Solomon', 9, '9781400033423', 1977, 'A coming-of-age story exploring African American identity and family legacy.'),
-('One Hundred Years of Solitude', 10, '9780060883287', 1967, 'Magical realism masterpiece about the Buendía family in the fictional town of Macondo.'),
+('One Hundred Years of Solitude', 10, '9780060883287', 1967, 'Magical realism masterpiece about the Buendia family in the fictional town of Macondo.'),
 ('Love in the Time of Cholera', 11, '9780307389732', 1985, 'A love story spanning over fifty years set in the Caribbean.'),
 ('Norwegian Wood', 12, '9780375704024', 1987, 'A coming-of-age story set in 1960s Tokyo dealing with love, loss, and suicide.'),
 ('Kafka on the Shore', 13, '9781400079278', 2002, 'A surreal novel about a teenage boy and an elderly man whose lives intersect.'),
@@ -919,12 +919,9 @@ END;
 CREATE TRIGGER trg_before_loan_insert_check_availability
 BEFORE INSERT ON Loans
 FOR EACH ROW
+WHEN (SELECT Status FROM BookCopies WHERE CopyID = NEW.CopyID) != 'Available'
 BEGIN
-    SELECT
-    CASE
-        WHEN (SELECT Status FROM BookCopies WHERE CopyID = NEW.CopyID) != 'Available'
-        THEN RAISE(ABORT, 'Cannot loan a book copy that is not available')
-    END;
+    SELECT RAISE(ABORT, 'Cannot loan a book copy that is not available');
 END;
 
 CREATE TRIGGER trg_after_reservation_insert
