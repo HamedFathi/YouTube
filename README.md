@@ -27,3 +27,4 @@ A passionate software engineer and creator. On my [YouTube channel](https://www.
 - [Multi-agent apps with C# and Semantic Kernel (Job Assistant App)](https://www.youtube.com/watch?v=MCVMUu1N2Pc)
 - [Ollama OCR Server with C# and .NET Aspire](https://www.youtube.com/watch?v=wPLqkuxNzqM)
 - [Speech-to-Text with Whisper.cpp in C#](https://www.youtube.com/watch?v=JXot-hCd0wE)
+- [MCP (Model Context Protocol) in C# - Talk with your database!](https://www.youtube.com/watch?v=y3Zu0Bmd0HQ)
