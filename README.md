@@ -28,3 +28,4 @@ A passionate software engineer and creator. On my [YouTube channel](https://www.
 - [Ollama OCR Server with C# and .NET Aspire](https://www.youtube.com/watch?v=wPLqkuxNzqM)
 - [Speech-to-Text with Whisper.cpp in C#](https://www.youtube.com/watch?v=JXot-hCd0wE)
 - [MCP (Model Context Protocol) in C# - Talk with your database!](https://www.youtube.com/watch?v=y3Zu0Bmd0HQ)
+- [Automate Code Reviews with Git Hooks and Ollama](https://www.youtube.com/watch?v=FmFgbqACVxU)
