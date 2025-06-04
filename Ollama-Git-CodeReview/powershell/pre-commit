@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Get the path of the current Git repo
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Call PowerShell script from bash
+pwsh "$SCRIPT_DIR/pre-commit-hook.ps1"
+
+# Capture exit code
+exitCode=$?
+
+if [ $exitCode -ne 0 ]; then
+  echo "❌ Pre-hook failed. Commit blocked."
+  exit $exitCode
+fi
